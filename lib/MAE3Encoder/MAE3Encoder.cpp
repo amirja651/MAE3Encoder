@@ -37,15 +37,8 @@ void IRAM_ATTR MAE3Encoder::interruptHandler3()
     }
 }
 
-MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId)
-    : signalPin(signalPin),
-      interruptPin(interruptPin),
-      encoderId(encoderId),
-      state{},
-      lastPulseTime(0),
-      newPulseAvailable(false),
-      pulseStartTime(0),
-      constants(ENCODER_12BIT)
+MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
+    : signalPin(signalPin), encoderId(encoderId), state{}, lastPulseTime(0), newPulseAvailable(false), pulseStartTime(0)
 {
 }
 
@@ -57,8 +50,7 @@ bool MAE3Encoder::begin()
     }
 
     // Configure pins
-    pinMode(signalPin, INPUT);
-    pinMode(interruptPin, INPUT);
+    pinMode(signalPin, INPUT_PULLDOWN);
 
     // Store instance for interrupt handling
     encoderInstances[encoderId] = this;
@@ -67,24 +59,24 @@ bool MAE3Encoder::begin()
     switch (encoderId)
     {
         case 0:
-            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler0, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(signalPin), interruptHandler0, CHANGE);
             break;
         case 1:
-            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler1, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(signalPin), interruptHandler1, CHANGE);
             break;
         case 2:
-            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler2, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(signalPin), interruptHandler2, CHANGE);
             break;
         case 3:
-            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler3, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(signalPin), interruptHandler3, CHANGE);
             break;
     }
 
     // Initialize state
-    state.currentPulse = 0;
-    state.laps         = 0;
-    state.direction    = Direction::UNKNOWN;
-    state.lastPulse    = 0;
+    state.current_Pulse = 0;
+    state.laps          = 0;
+    state.direction     = Direction::UNKNOWN;
+    state.last_pulse    = 0;
 
     return true;
 }
@@ -102,7 +94,7 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastFallingEdgeTime != 0)
         {
             // Measure low pulse width (falling to rising)
-            state.pulseWidthLowUs = lastRisingEdgeTime - lastFallingEdgeTime;
+            state.t_off = lastRisingEdgeTime - lastFallingEdgeTime;
         }
         pulseStartTime = currentTime;
     }
@@ -113,47 +105,76 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastRisingEdgeTime != 0)
         {
             // Measure high pulse width (rising to falling)
-            state.pulseWidthHighUs = lastFallingEdgeTime - lastRisingEdgeTime;
+            state.t_on = lastFallingEdgeTime - lastRisingEdgeTime;
         }
 
-        uint32_t x        = (state.pulseWidthHighUs * 4098) / (state.pulseWidthHighUs + state.pulseWidthLowUs) - 1;
-        uint32_t Position = 0;
+        unsigned long total_t = state.t_on + state.t_off - 1;
 
-        if (x <= 4094)
+        if (total_t == 0)
         {
-            Position = x;
+            return;
         }
-        else if (x == 4096)
+
+        unsigned long x_measured = (state.t_on * 4098) / total_t;
+
+        if (x_measured <= 4095)
         {
-            Position = 4095;
+        }
+        else if (x_measured == 4097)
+        {
+            x_measured = 4095;
         }
         else
         {
             return;
         }
-        
-        state.currentPulse = Position;
-        newPulseAvailable  = true;
-        lastPulseTime      = currentTime;
+
+        state.current_Pulse = x_measured;
+        newPulseAvailable   = true;
+        lastPulseTime       = currentTime;
     }
 }
 
-bool MAE3Encoder::update()
+void MAE3Encoder::update()
 {
     if (!newPulseAvailable)
     {
-        return false;
+        return;
     }
 
-    // Adjust noise threshold based on resolution (0.6% of full scale)
-    uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
-    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < noiseThreshold)
+    Direction newDirection = Direction::UNKNOWN;
+
+    // Adjust noise threshold based on resolution (0.3% of full scale)
+    uint32_t noiseThreshold = 4097 * 3 / 1000;
+    if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) < noiseThreshold)
     {
-        return false;
+        return;
     }
 
-    // Calculate direction before updating state
-    Direction newDirection = detectDirection();
+    // Handle wrap-around cases
+    uint32_t diff = state.current_Pulse - state.last_pulse;
+    if (state.current_Pulse > state.last_pulse)
+    {
+        if (diff > (4097 / 2))
+        {
+            newDirection = Direction::COUNTER_CLOCKWISE;
+        }
+        else
+        {
+            newDirection = Direction::CLOCKWISE;
+        }
+    }
+    else
+    {
+        if (-diff > (4097 / 2))
+        {
+            newDirection = Direction::CLOCKWISE;
+        }
+        else
+        {
+            newDirection = Direction::COUNTER_CLOCKWISE;
+        }
+    }
 
     // Handle lap counting
     if (newDirection != Direction::UNKNOWN)
@@ -161,7 +182,7 @@ bool MAE3Encoder::update()
         // Check for clockwise lap completion
         if (newDirection == Direction::CLOCKWISE)
         {
-            if (state.lastPulse > (constants.PULSE_PER_REV * 3 / 4) && state.currentPulse < (constants.PULSE_PER_REV / 4))
+            if (state.last_pulse > (4097 * 3 / 4) && state.current_Pulse < (4097 / 4))
             {
                 state.laps++;
             }
@@ -169,7 +190,7 @@ bool MAE3Encoder::update()
         // Check for counter-clockwise lap completion
         else if (newDirection == Direction::COUNTER_CLOCKWISE)
         {
-            if (state.lastPulse < (constants.PULSE_PER_REV / 4) && state.currentPulse > (constants.PULSE_PER_REV * 3 / 4))
+            if (state.last_pulse < (4097 / 4) && state.current_Pulse > (4097 * 3 / 4))
             {
                 state.laps--;
             }
@@ -178,25 +199,24 @@ bool MAE3Encoder::update()
 
     // Update state
     state.direction   = newDirection;
-    state.lastPulse   = state.currentPulse;
+    state.last_pulse  = state.current_Pulse;
     newPulseAvailable = false;
-    return true;
 }
 
 Direction MAE3Encoder::detectDirection()
 {
-    uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
-    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < noiseThreshold)
+    uint32_t noiseThreshold = 4097 * 6 / 1000;
+    if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) < noiseThreshold)
     {
         return state.direction;
     }
 
     // Handle wrap-around cases
     uint32_t diff;
-    if (state.currentPulse > state.lastPulse)
+    if (state.current_Pulse > state.last_pulse)
     {
-        diff = state.currentPulse - state.lastPulse;
-        if (diff > (constants.PULSE_PER_REV / 2))
+        diff = state.current_Pulse - state.last_pulse;
+        if (diff > (4097 / 2))
         {
             return Direction::COUNTER_CLOCKWISE;
         }
@@ -204,8 +224,8 @@ Direction MAE3Encoder::detectDirection()
     }
     else
     {
-        diff = state.lastPulse - state.currentPulse;
-        if (diff > (constants.PULSE_PER_REV / 2))
+        diff = state.last_pulse - state.current_Pulse;
+        if (diff > (4097 / 2))
         {
             return Direction::CLOCKWISE;
         }
@@ -215,8 +235,8 @@ Direction MAE3Encoder::detectDirection()
 
 void MAE3Encoder::reset()
 {
-    state.currentPulse = 0;
-    state.laps         = 0;
-    state.direction    = Direction::UNKNOWN;
-    state.lastPulse    = 0;
+    state.current_Pulse = 0;
+    state.laps          = 0;
+    state.direction     = Direction::UNKNOWN;
+    state.last_pulse    = 0;
 }

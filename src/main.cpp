@@ -6,7 +6,7 @@ static const uint16_t ENC_B = 39;
 static const uint16_t ENC_C = 34;
 static const uint16_t ENC_D = 35;
 
-MAE3Encoder encoder = MAE3Encoder(ENC_A, ENC_A, 0);
+MAE3Encoder encoder = MAE3Encoder(ENC_A, 0);
 
 // helper for table print
 #define CLEAR_SCREEN printf("\e[1;1H\e[2J")
@@ -39,11 +39,11 @@ float    lastPosition     = 0;
 void loop()
 {
     encoder.update();
-    const auto& state           = encoder.getState();
-    String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-    float       currentPosition = encoder.getPositionDegrees();
+    const auto& state     = encoder.getState();
+    String      direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+    float       degrees   = encoder.getPositionDegrees();
 
-    if (fabs(state.currentPulse - lastPulseWidthUs) > 1)
+    if (fabs(state.current_Pulse - lastPulseWidthUs) > 1)
     {
         // gotoRowCol(1, 1);
         //  table header
@@ -51,13 +51,13 @@ void loop()
 
         // table data
         Serial.printf("%d\t", state.laps);
-        Serial.printf("%d\t\t", state.pulseWidthUs);
-        Serial.printf("%d\t\t", state.currentPulse);
-        Serial.printf("%.2f\t\t", currentPosition);
+        Serial.printf("%ld\t\t", state.pulse_width);
+        Serial.printf("%ld\t\t", state.current_Pulse);
+        Serial.printf("%.2f\t\t", degrees);
         Serial.printf("%s\t\t", direction.c_str());
-        Serial.printf("%d\t\t", state.pulseWidthHighUs);
-        Serial.printf("%d\n", state.pulseWidthLowUs);
-        lastPulseWidthUs = state.currentPulse;
+        Serial.printf("%ld\t\t", state.t_on);
+        Serial.printf("%ld\n", state.t_off);
+        lastPulseWidthUs = state.current_Pulse;
     }
 
     delay(100);
