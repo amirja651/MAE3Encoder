@@ -8,19 +8,6 @@ static const uint16_t ENC_D = 35;
 
 MAE3Encoder encoder = MAE3Encoder(ENC_A, 0);
 
-// helper for table print
-#define CLEAR_SCREEN printf("\e[1;1H\e[2J")
-
-void gotoRowCol(const int row, const int col)
-{
-    // Position the cursor at the desired position (row, col)
-    Serial.print("\033[");  // Begin of escape sequence
-    Serial.print(row);      // row number (begins with 1)
-    Serial.print(";");
-    Serial.print(col);  // column (begins with 1)
-    Serial.print("H");
-}
-
 void setup()
 {
     Serial.begin(115200);

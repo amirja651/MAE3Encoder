@@ -50,7 +50,7 @@ bool MAE3Encoder::begin()
     }
 
     // Configure pins
-    pinMode(signalPin, INPUT_PULLDOWN);
+    pinMode(signalPin, INPUT_PULLUP);
 
     // Store instance for interrupt handling
     encoderInstances[encoderId] = this;
