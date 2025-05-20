@@ -34,7 +34,7 @@ void loop()
     {
         // gotoRowCol(1, 1);
         //  table header
-        printf("Laps\tPulse_Width\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\n");
+        Serial.printf("Laps\tPulse_Width\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\tTotal_Pulse\n");
 
         // table data
         Serial.printf("%d\t", state.laps);
@@ -43,7 +43,8 @@ void loop()
         Serial.printf("%.2f\t\t", degrees);
         Serial.printf("%s\t\t", direction.c_str());
         Serial.printf("%ld\t\t", state.t_on);
-        Serial.printf("%ld\n", state.t_off);
+        Serial.printf("%ld\t\t", state.t_off);
+        Serial.printf("%ld\n", state.total_t);
         lastPulseWidthUs = state.current_Pulse;
     }
 

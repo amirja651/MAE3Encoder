@@ -9,11 +9,11 @@
 constexpr uint8_t MAX_ENCODERS = 4;
 
 // Linear motion constants
-constexpr float LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
-constexpr float TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
-constexpr float LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
-constexpr float TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
-
+constexpr float    LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
+constexpr float    TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
+constexpr float    LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
+constexpr float    TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
+constexpr uint32_t max_t               = 4120;
 // Direction enum
 enum class Direction
 {
@@ -31,6 +31,7 @@ struct EncoderState
     volatile unsigned long pulse_width;    // Pulse width in microseconds
     volatile unsigned long t_on;           // High pulse width (rising to falling)
     volatile unsigned long t_off;          // Low pulse width (falling to rising)
+    volatile unsigned long total_t;        // Total pulse width (t_on + t_off)
 };
 
 class MAE3Encoder
@@ -50,13 +51,13 @@ public:
     // Degrees per pulse
     float getDegreesPerPulse() const
     {
-        return 360.0f / 4097;
+        return 360.0f / (max_t - 1);
     }
 
     // Millimeters per pulse
     float getMMPerPulse() const
     {
-        return LEAD_SCREW_PITCH_MM / 4097;
+        return LEAD_SCREW_PITCH_MM / (max_t - 1);
     }
 
     // Micrometers per pulse

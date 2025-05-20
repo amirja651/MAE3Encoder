@@ -94,6 +94,11 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastFallingEdgeTime != 0)
         {
             // Measure low pulse width (falling to rising)
+            if (lastRisingEdgeTime - lastFallingEdgeTime > (max_t - 1))
+            {
+                lastRisingEdgeTime = 0;
+                return;
+            }
             state.t_off = lastRisingEdgeTime - lastFallingEdgeTime;
         }
         pulseStartTime = currentTime;
@@ -105,29 +110,40 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastRisingEdgeTime != 0)
         {
             // Measure high pulse width (rising to falling)
+            if (lastFallingEdgeTime - lastRisingEdgeTime > (max_t - 1))
+            {
+                lastFallingEdgeTime = 0;
+                return;
+            }
             state.t_on = lastFallingEdgeTime - lastRisingEdgeTime;
         }
 
-        unsigned long total_t = state.t_on + state.t_off - 1;
+        unsigned long total_t = state.t_on + state.t_off;
+        state.total_t         = total_t;
 
         if (total_t == 0)
         {
             return;
         }
 
-        unsigned long x_measured = (state.t_on * 4098) / total_t;
+        unsigned long x_measured = (state.t_on * max_t) / total_t - 1;
 
-        if (x_measured <= 4095)
+        if (x_measured <= (max_t - 3))
         {
         }
-        else if (x_measured == 4097)
+        else if (x_measured == (max_t - 1))
         {
-            x_measured = 4095;
+            x_measured = (max_t - 3);
         }
         else
         {
             return;
         }
+
+        /*if (std::abs(static_cast<int32_t>(x_measured - state.current_Pulse)) <= 2)
+        {
+            return;
+        }*/
 
         state.current_Pulse = x_measured;
         newPulseAvailable   = true;
@@ -144,18 +160,16 @@ void MAE3Encoder::update()
 
     Direction newDirection = Direction::UNKNOWN;
 
-    // Adjust noise threshold based on resolution (0.3% of full scale)
-    uint32_t noiseThreshold = 4097 * 3 / 1000;
-    if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) < noiseThreshold)
+    /*if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) <= 1)
     {
         return;
-    }
+    }*/
 
     // Handle wrap-around cases
     uint32_t diff = state.current_Pulse - state.last_pulse;
     if (state.current_Pulse > state.last_pulse)
     {
-        if (diff > (4097 / 2))
+        if (diff > ((max_t - 1) / 2))
         {
             newDirection = Direction::COUNTER_CLOCKWISE;
         }
@@ -166,7 +180,7 @@ void MAE3Encoder::update()
     }
     else
     {
-        if (-diff > (4097 / 2))
+        if (-diff > ((max_t - 1) / 2))
         {
             newDirection = Direction::CLOCKWISE;
         }
@@ -182,7 +196,7 @@ void MAE3Encoder::update()
         // Check for clockwise lap completion
         if (newDirection == Direction::CLOCKWISE)
         {
-            if (state.last_pulse > (4097 * 3 / 4) && state.current_Pulse < (4097 / 4))
+            if (state.last_pulse > ((max_t - 1) * 3 / 4) && state.current_Pulse < ((max_t - 1) / 4))
             {
                 state.laps++;
             }
@@ -190,7 +204,7 @@ void MAE3Encoder::update()
         // Check for counter-clockwise lap completion
         else if (newDirection == Direction::COUNTER_CLOCKWISE)
         {
-            if (state.last_pulse < (4097 / 4) && state.current_Pulse > (4097 * 3 / 4))
+            if (state.last_pulse < ((max_t - 1) / 4) && state.current_Pulse > ((max_t - 1) * 3 / 4))
             {
                 state.laps--;
             }
@@ -205,7 +219,7 @@ void MAE3Encoder::update()
 
 Direction MAE3Encoder::detectDirection()
 {
-    uint32_t noiseThreshold = 4097 * 6 / 1000;
+    uint32_t noiseThreshold = (max_t - 1) * 6 / 1000;
     if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) < noiseThreshold)
     {
         return state.direction;
@@ -216,7 +230,7 @@ Direction MAE3Encoder::detectDirection()
     if (state.current_Pulse > state.last_pulse)
     {
         diff = state.current_Pulse - state.last_pulse;
-        if (diff > (4097 / 2))
+        if (diff > ((max_t - 1) / 2))
         {
             return Direction::COUNTER_CLOCKWISE;
         }
@@ -225,7 +239,7 @@ Direction MAE3Encoder::detectDirection()
     else
     {
         diff = state.last_pulse - state.current_Pulse;
-        if (diff > (4097 / 2))
+        if (diff > ((max_t - 1) / 2))
         {
             return Direction::CLOCKWISE;
         }
