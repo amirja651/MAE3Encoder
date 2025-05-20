@@ -94,12 +94,12 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastFallingEdgeTime != 0)
         {
             // Measure low pulse width (falling to rising)
-            if (lastRisingEdgeTime - lastFallingEdgeTime > (max_t - 1))
+            state.t_off = lastRisingEdgeTime - lastFallingEdgeTime;
+            if (state.t_off > (max_t - 1))
             {
-                lastRisingEdgeTime = 0;
+                state.t_off = (max_t - 1);
                 return;
             }
-            state.t_off = lastRisingEdgeTime - lastFallingEdgeTime;
         }
         pulseStartTime = currentTime;
     }
@@ -110,12 +110,12 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         if (lastRisingEdgeTime != 0)
         {
             // Measure high pulse width (rising to falling)
-            if (lastFallingEdgeTime - lastRisingEdgeTime > (max_t - 1))
+            state.t_on = lastFallingEdgeTime - lastRisingEdgeTime;
+            if (state.t_on > (max_t - 1))
             {
-                lastFallingEdgeTime = 0;
+                state.t_on = (max_t - 1);
                 return;
             }
-            state.t_on = lastFallingEdgeTime - lastRisingEdgeTime;
         }
 
         unsigned long total_t = state.t_on + state.t_off;

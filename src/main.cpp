@@ -8,6 +8,9 @@ static const uint16_t ENC_D = 35;
 
 MAE3Encoder encoder = MAE3Encoder(ENC_A, 0);
 
+// Buffer for storing output
+char outputBuffer[200];
+
 void setup()
 {
     Serial.begin(115200);
@@ -18,6 +21,7 @@ void setup()
     }
 
     encoder.begin();
+    printf("\e[1;1H\e[2J");  // clear screen
 }
 
 uint32_t lastPulseWidthUs = 0;
@@ -32,19 +36,17 @@ void loop()
 
     if (fabs(state.current_Pulse - lastPulseWidthUs) > 1)
     {
-        // gotoRowCol(1, 1);
-        //  table header
-        Serial.printf("Laps\tPulse_Width\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\tTotal_Pulse\n");
+        printf("\e[2J\e[1;1H");  // clear screen
+        // table header
+        printf("Laps\tPulse_Width\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\tTotal_Pulse\n");
 
-        // table data
-        Serial.printf("%d\t", state.laps);
-        Serial.printf("%ld\t\t", state.pulse_width);
-        Serial.printf("%ld\t\t", state.current_Pulse);
-        Serial.printf("%.2f\t\t", degrees);
-        Serial.printf("%s\t\t", direction.c_str());
-        Serial.printf("%ld\t\t", state.t_on);
-        Serial.printf("%ld\t\t", state.t_off);
-        Serial.printf("%ld\n", state.total_t);
+        // Format all values into the buffer
+        snprintf(outputBuffer, sizeof(outputBuffer), "%d\t%ld\t\t%ld\t\t%.2f\t\t%s\t\t%ld\t\t%ld\t\t%ld\n", state.laps,
+                 state.pulse_width, state.current_Pulse, degrees, direction.c_str(), state.t_on, state.t_off, state.total_t);
+
+        // Print the entire buffer at once
+        printf(outputBuffer);
+
         lastPulseWidthUs = state.current_Pulse;
     }
 
