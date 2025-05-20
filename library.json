@@ -17,6 +17,6 @@
     "platforms": "espressif32",
     "build": {
         "srcDir": "src",
-        "includeDir": "include"
+        "includeDir": "src"
     }
 }
